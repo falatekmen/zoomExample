@@ -130,6 +130,10 @@ android {
 
     compileSdkVersion rootProject.ext.compileSdkVersion
 
+    packagingOptions {
+         pickFirst '**/*.so'
+     }
+
     defaultConfig {
         applicationId "com.zoomexample"
         minSdkVersion rootProject.ext.minSdkVersion
