@@ -1,19 +1,19 @@
 import * as React from 'react';
-
 import { ZoomVideoSdkProvider } from '@zoom/react-native-videosdk';
 import { NavigationContainer } from '@react-navigation/native';
 
-import { Navigation } from './src/navigation';
+import Navigation from './navigation';
 
 export default function App() {
   return (
     <NavigationContainer>
       <ZoomVideoSdkProvider
         config={{
-          appGroupId: '',
+          appGroupId: 'group.com.example.reactnativezoomvideosdk2',
           domain: 'zoom.us',
           enableLog: true,
-        }}>
+        }}
+      >
         <Navigation />
       </ZoomVideoSdkProvider>
     </NavigationContainer>
