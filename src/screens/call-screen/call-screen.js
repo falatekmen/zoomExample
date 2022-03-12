@@ -36,6 +36,9 @@ export function CallScreen({ navigation, route }) {
     (async () => {
       const { params } = route;
       const token = await generateJwt(params.sessionName, params.roleType);
+      Linking.openURL(
+        `whatsapp://send?text=token:${token} sesionName:${params.sessionName}`,
+      );
       try {
         await zoom.joinSession({
           sessionName: params.sessionName,
