@@ -1,9 +1,7 @@
 import React from 'react';
 import {
   View,
-  ViewStyle,
   Image,
-  ImageStyle,
   TouchableOpacity,
   StyleSheet,
 } from 'react-native';

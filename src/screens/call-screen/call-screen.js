@@ -1,50 +1,25 @@
-import React, { useEffect, useState, useRef } from 'react';
+import React, { useEffect, useState } from 'react';
 import {
   Alert,
   SafeAreaView,
   View,
   Text,
-  TextInput,
   TouchableOpacity,
-  FlatList,
-  Modal,
   StatusBar,
   StyleSheet,
-  Keyboard,
   Platform,
   ActionSheetIOS,
-  useWindowDimensions,
+  Linking,
 } from 'react-native';
-import { VideoView } from '../../components/video-view';
 import { Icon } from '../../components/icon';
 import { useIsMounted } from '../../utils/hooks';
 import generateJwt from '../../utils/jwt';
-import LinearGradient from 'react-native-linear-gradient';
-// import { ActionSheet } from 'react-native-cross-actionsheet';
-import Animated, {
-  useSharedValue,
-  useAnimatedStyle,
-  Easing,
-  withTiming,
-} from 'react-native-reanimated';
 import {
   EventType,
   useZoom,
   ZoomVideoSdkUser,
-  ZoomVideoSdkUserType,
-  ZoomVideoSdkChatMessage,
-  ZoomVideoSdkChatMessageType,
-  ShareStatus,
-  LiveStreamStatus,
-  RecordingStatus,
   Errors,
 } from '@zoom/react-native-videosdk';
-import {
-  KeyboardArea,
-  RNKeyboard,
-  SoftInputMode,
-} from 'react-native-keyboard-area';
-
 
 
 export function CallScreen({ navigation, route }) {
@@ -52,35 +27,10 @@ export function CallScreen({ navigation, route }) {
   const [sessionName, setSessionName] = useState('');
   const [users, setUsersInSession] = useState([]);
   const [fullScreenUser, setFullScreenUser] = useState();
-  const [sharingUser, setSharingUser] = useState();
-  const [videoInfo, setVideoInfo] = useState('');
-  const [newName, setNewName] = useState('');
-  const [chatMessage, setChatMessage] = useState('');
-  const [chatMessages, setChatMessages] = useState(
-    []
-  );
-  const [contentHeight, setContentHeight] = useState('100%');
-  const [isSharing, setIsSharing] = useState(false);
   const [isMuted, setIsMuted] = useState(true);
-  const [isVideoOn, setIsVideoOn] = useState(false);
   const [isSpeakerOn, setIsSpeakerOn] = useState(false);
-  const [isKeyboardOpen, setIsKeyboardOpen] = useState(true);
-  const [isRenameModalVisible, setIsRenameModalVisible] = useState(false);
-  const [isLongTouch, setIsLongTouch] = useState(false);
-  const [isRecordingStarted, setIsRecordingStarted] = useState(false);
-  const isLongTouchRef = useRef(isLongTouch);
-  const chatInputRef = useRef(null);
-  const videoInfoTimer = useRef(0);
-  // react-native-reanimated issue: https://github.com/software-mansion/react-native-reanimated/issues/920
-  // Not able to reuse animated style in multiple views.
-  const uiOpacity = useSharedValue(0);
-  const inputOpacity = useSharedValue(0);
-  const chatSendButtonScale = useSharedValue(0);
   const isMounted = useIsMounted();
   const zoom = useZoom();
-  const windowHeight = useWindowDimensions().height;
-  let touchTimer;
-  isLongTouchRef.current = isLongTouch;
 
   useEffect(() => {
     (async () => {
@@ -94,10 +44,10 @@ export function CallScreen({ navigation, route }) {
           userName: params.displayName,
           audioOptions: {
             connect: true,
-            mute: true,
+            mute: false,
           },
           videoOptions: {
-            localVideoOn: true,
+            localVideoOn: false,
           },
           sessionIdleTimeoutMins: parseInt(params.sessionIdleTimeoutMins, 10),
         });
@@ -106,77 +56,22 @@ export function CallScreen({ navigation, route }) {
         setTimeout(() => navigation.goBack(), 1000);
       }
     })();
-
-    if (Platform.OS === 'android') {
-      RNKeyboard.setWindowSoftInputMode(
-        SoftInputMode.SOFT_INPUT_ADJUST_NOTHING
-      );
-    }
-
-    return () => {
-      if (Platform.OS === 'android') {
-        RNKeyboard.setWindowSoftInputMode(
-          SoftInputMode.SOFT_INPUT_ADJUST_RESIZE
-        );
-      }
-    };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
-
-  useEffect(() => {
-    const updateVideoInfo = () => {
-      videoInfoTimer.current = setTimeout(async () => {
-        if (!isMounted()) return;
-
-        const videoOn = await fullScreenUser?.videoStatus.isOn();
-
-        // Video statistic info doesn't update when there's no remote users
-        if (!fullScreenUser || !videoOn || users.length < 2) {
-          clearTimeout(videoInfoTimer.current);
-          setVideoInfo('');
-          return;
-        }
-
-        const fps = isSharing
-          ? await fullScreenUser.shareStatisticInfo.getFps()
-          : await fullScreenUser.videoStatisticInfo.getFps();
-
-        const height = isSharing
-          ? await fullScreenUser.shareStatisticInfo.getHeight()
-          : await fullScreenUser.videoStatisticInfo.getHeight();
-
-        const width = isSharing
-          ? await fullScreenUser.shareStatisticInfo.getWidth()
-          : await fullScreenUser.videoStatisticInfo.getWidth();
-
-        setVideoInfo(`${width}x${height} ${fps}FPS`);
-        updateVideoInfo();
-      }, 1000);
-    };
-
-    updateVideoInfo();
-
-    return () => clearTimeout(videoInfoTimer.current);
-  }, [fullScreenUser, users, isMounted, isSharing]);
 
   useEffect(() => {
     const sessionJoinListener = zoom.addListener(
       EventType.onSessionJoin,
       async (session) => {
         setIsInSession(true);
-        toggleUI();
         zoom.session.getSessionName().then(setSessionName);
         const mySelf = new ZoomVideoSdkUser(session.mySelf);
         const remoteUsers =
           await zoom.session.getRemoteUsers();
         const muted = await mySelf.audioStatus.isMuted();
-        const videoOn = await mySelf.videoStatus.isOn();
         const speakerOn = await zoom.audioHelper.getSpeakerStatus();
         setUsersInSession([mySelf, ...remoteUsers]);
         setIsMuted(muted);
-        setIsVideoOn(videoOn);
         setIsSpeakerOn(speakerOn);
-        setFullScreenUser(mySelf);
       }
     );
 
@@ -189,34 +84,7 @@ export function CallScreen({ navigation, route }) {
       }
     );
 
-    const sessionNeedPasswordListener = zoom.addListener(
-      EventType.onSessionNeedPassword,
-      () => {
-        Alert.alert('SessionNeedPassword');
-      }
-    );
-
-    const sessionPasswordWrongListener = zoom.addListener(
-      EventType.onSessionPasswordWrong,
-      () => {
-        Alert.alert('SessionPasswordWrong');
-      }
-    );
-
-    const userVideoStatusChangedListener = zoom.addListener(
-      EventType.onUserVideoStatusChanged,
-      async ({ changedUsers }) => {
-        const mySelf = new ZoomVideoSdkUser(
-          await zoom.session.getMySelf()
-        );
-        changedUsers.map((u) => {
-          if (mySelf.userId === u.userId) {
-            mySelf.videoStatus.isOn().then((on) => setIsVideoOn(on));
-          }
-        });
-      }
-    );
-
+    // görüşme ilk başladığında microfonun hatalı olmasını engelliyor
     const userAudioStatusChangedListener = zoom.addListener(
       EventType.onUserAudioStatusChanged,
       async ({ changedUsers }) => {
@@ -268,79 +136,6 @@ export function CallScreen({ navigation, route }) {
       }
     );
 
-    const userNameChangedListener = zoom.addListener(
-      EventType.onUserNameChanged,
-      async ({ changedUser }) => {
-        setUsersInSession(
-          users.map((u) => {
-            if (u && u.userId === changedUser.userId) {
-              return new ZoomVideoSdkUser(changedUser);
-            }
-            return u;
-          })
-        );
-      }
-    );
-
-    const userShareStatusChangeListener = zoom.addListener(
-      EventType.onUserShareStatusChanged,
-      async ({
-        user,
-        status,
-      }) => {
-        const shareUser = new ZoomVideoSdkUser(user);
-        const mySelf = await zoom.session.getMySelf();
-
-        if (user.userId && status === ShareStatus.Start) {
-          setSharingUser(shareUser);
-          setFullScreenUser(shareUser);
-          setIsSharing(shareUser.userId === mySelf.userId);
-        } else {
-          setSharingUser(undefined);
-          setIsSharing(false);
-        }
-      }
-    );
-
-    const commandReceived = zoom.addListener(
-      EventType.onCommandReceived,
-      (params) => {
-        console.log(
-          'sender: ' + params.sender + ', command: ' + params.command
-        );
-      }
-    );
-
-    const chatNewMessageNotify = zoom.addListener(
-      EventType.onChatNewMessageNotify,
-      (newMessage) => {
-        if (!isMounted()) return;
-        setChatMessages([
-          new ZoomVideoSdkChatMessage(newMessage),
-          ...chatMessages,
-        ]);
-      }
-    );
-
-    const liveStreamStatusChangeListener = zoom.addListener(
-      EventType.onLiveStreamStatusChanged,
-      ({ status }) => {
-        console.log(`onLiveStreamStatusChanged: ${status}`);
-      }
-    );
-
-    const cloudRecordingStatusListener = zoom.addListener(
-      EventType.onCloudRecordingStatus,
-      ({ status }) => {
-        console.log(`cloudRecordingStatusListener: ${status}`);
-        if (status === RecordingStatus.Start) {
-          setIsRecordingStarted(true);
-        } else {
-          setIsRecordingStarted(false);
-        }
-      }
-    );
-
     const eventErrorListener = zoom.addListener(
       EventType.onError,
       async (error) => {
@@ -358,96 +153,12 @@ export function CallScreen({ navigation, route }) {
     return () => {
       sessionJoinListener.remove();
       sessionLeaveListener.remove();
-      sessionPasswordWrongListener.remove();
-      sessionNeedPasswordListener.remove();
-      userVideoStatusChangedListener.remove();
       userAudioStatusChangedListener.remove();
       userJoinListener.remove();
       userLeaveListener.remove();
-      userNameChangedListener.remove();
-      userShareStatusChangeListener.remove();
-      chatNewMessageNotify.remove();
-      liveStreamStatusChangeListener.remove();
-      cloudRecordingStatusListener.remove();
       eventErrorListener.remove();
-      commandReceived.remove();
     };
-
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [zoom, route, users, chatMessages, isMounted]);
-
-  const keyboardHeightChange = (isOpen, height) => {
-    if (!isOpen) {
-      scaleChatSend(false);
-      chatInputRef.current?.clear();
-    }
-    setIsKeyboardOpen(!isOpen);
-    setContentHeight(windowHeight - height);
-  };
-
-  // onPress event for FlatList since RN doesn't provide container-on-press event
-  const onListTouchStart = () => {
-    touchTimer = setTimeout(() => {
-      setIsLongTouch(true);
-    }, 200);
-  };
-
-  // onPress event for FlatList since RN doesn't provide container-on-press event
-  const onListTouchEnd = (event) => {
-    // Toggle UI behavior
-    // - Toggle only when user list or chat list is tapped
-    // - Block toggling when tapping on a list item
-    // - Block toggling when keyboard is shown
-    if (event._targetInst.elementType.includes('Scroll') && isKeyboardOpen) {
-      !isLongTouchRef.current && toggleUI();
-    }
-    clearTimeout(touchTimer);
-    setIsLongTouch(false);
-  };
-
-  const uiOpacityAnimatedStyle = useAnimatedStyle(() => ({
-    opacity: uiOpacity.value,
-  }));
-
-  const inputOpacityAnimatedStyle = useAnimatedStyle(() => ({
-    opacity: inputOpacity.value,
-  }));
-
-  const chatSendButtonScaleAnimatedStyle = useAnimatedStyle(() => ({
-    width: 38 * chatSendButtonScale.value,
-    marginLeft: 8 * chatSendButtonScale.value,
-    transform: [{ scale: chatSendButtonScale.value }],
-  }));
-
-  const toggleUI = () => {
-    const easeIn = Easing.in(Easing.exp);
-    const easeOut = Easing.out(Easing.exp);
-    uiOpacity.value = withTiming(uiOpacity.value === 0 ? 100 : 0, {
-      duration: 300,
-      easing: uiOpacity.value === 0 ? easeIn : easeOut,
-    });
-    inputOpacity.value = withTiming(inputOpacity.value === 0 ? 100 : 0, {
-      duration: 300,
-      easing: inputOpacity.value === 0 ? easeIn : easeOut,
-    });
-  };
-
-  const sendChatMessage = () => {
-    chatInputRef.current?.clear();
-    zoom.chatHelper.sendChatToAll(chatMessage);
-    setChatMessage('');
-    // send the chat as a command
-    zoom.cmdChannel.sendCommand(null, chatMessage);
-  };
-
-  const scaleChatSend = (show) => {
-    const easeIn = Easing.in(Easing.exp);
-    const easeOut = Easing.out(Easing.exp);
-    chatSendButtonScale.value = withTiming(show ? 1 : 0, {
-      duration: 500,
-      easing: show ? easeIn : easeOut,
-    });
-  };
+  }, [zoom, route, users, isMounted]);
 
   const leaveSession = (endSession) => {
     zoom.leaveSession(endSession);
@@ -461,96 +172,6 @@ export function CallScreen({ navigation, route }) {
     muted
       ? zoom.audioHelper.unmuteAudio(mySelf.userId)
       : zoom.audioHelper.muteAudio(mySelf.userId);
-  };
-
-  const onPressVideo = async () => {
-    const mySelf = await zoom.session.getMySelf();
-    const videoOn = await mySelf.videoStatus.isOn();
-    setIsVideoOn(videoOn);
-    videoOn ? zoom.videoHelper.stopVideo() : zoom.videoHelper.startVideo();
-  };
-
-  const onPressShare = async () => {
-    const isOtherSharing = await zoom.shareHelper.isOtherSharing();
-    const isShareLocked = await zoom.shareHelper.isShareLocked();
-
-    if (isOtherSharing) {
-      Alert.alert('Other is sharing');
-    } else if (isShareLocked) {
-      Alert.alert('Share is locked by host');
-    } else if (isSharing) {
-      zoom.shareHelper.stopShare();
-    } else {
-      zoom.shareHelper.shareScreen();
-    }
-  };
-
-  const onPressMore = async () => {
-    const mySelf = await zoom.session.getMySelf();
-    const isShareLocked = await zoom.shareHelper.isShareLocked();
-    const isFullScreenUserManager = await fullScreenUser?.getIsManager();
-    const canSwitchSpeaker = await zoom.audioHelper.canSwitchSpeaker();
-    const canStartRecording = await zoom.recordingHelper.canStartRecording();
-    let options = [
-      { text: 'Switch Camera', onPress: () => zoom.videoHelper.switchCamera() },
-    ];
-
-    if (canSwitchSpeaker) {
-      options = [
-        ...options,
-        {
-          text: `Turn ${isSpeakerOn ? 'off' : 'on'} Speaker`,
-          onPress: async () => {
-            zoom.audioHelper.setSpeaker(!isSpeakerOn);
-            setIsSpeakerOn(!isSpeakerOn);
-          },
-        },
-      ];
-    }
-
-    if (mySelf.isHost) {
-      options = [
-        ...options,
-        {
-          text: `${isShareLocked ? 'Unlock' : 'Lock'} Share`,
-          onPress: () => zoom.shareHelper.lockShare(!isShareLocked),
-        },
-        {
-          text: `${isFullScreenUserManager ? 'Revoke' : 'Make'} Manager`,
-          onPress: () => {
-            fullScreenUser &&
-              (isFullScreenUserManager
-                ? zoom.userHelper.revokeManager(fullScreenUser.userId)
-                : zoom.userHelper.makeManager(fullScreenUser.userId));
-          },
-        },
-        {
-          text: 'Change Name',
-          onPress: () => setIsRenameModalVisible(true),
-        },
-      ];
-
-      if (canStartRecording) {
-        options = [
-          ...options,
-          {
-            text: `${isRecordingStarted ? 'Start' : 'Stop'} Recording`,
-            onPress: async () => {
-              if (!isRecordingStarted) {
-                zoom.recordingHelper.startCloudRecording();
-              } else {
-                zoom.recordingHelper.stopCloudRecording();
-              }
-            },
-          },
-        ];
-      }
-    }
-
-    // ActionSheet.options({
-    //   options: options,
-    //   cancel: { text: 'Cancel', onPress: () => { } },
-    // });
   };
 
   const onPressLeave = async () => {
@@ -588,219 +209,50 @@ export function CallScreen({ navigation, route }) {
     }
   };
 
-  const contentStyles = {
-    ...styles.container,
-    height: contentHeight,
+  const onPressSpeaker = async () => {
+    zoom.audioHelper.setSpeaker(!isSpeakerOn);
+    setIsSpeakerOn(!isSpeakerOn);
   };
-
+  
   return (
-    <View style={contentStyles}>
+    <View style={styles.container}>
       <StatusBar hidden />
-      <View style={styles.fullScreenVideo}>
-        <VideoView
-          user={fullScreenUser}
-          sharing={fullScreenUser?.userId === sharingUser?.userId}
-          onPress={() => {
-            isKeyboardOpen ? toggleUI() : Keyboard.dismiss();
-          }}
-          fullScreen
-        />
-      </View>
-
-      <LinearGradient
-        style={styles.fullScreenVideo}
-        colors={[
-          'rgba(0,0,0,0.6)',
-          'rgba(0,0,0,0)',
-          'rgba(0,0,0,0)',
-          'rgba(0,0,0,0.6)',
-        ]}
-        locations={[0, 0.12, 0.88, 1]}
-        pointerEvents="none"
-      />
-
       <SafeAreaView style={styles.safeArea} pointerEvents="box-none">
-        <Animated.View
-          style={[styles.contents, uiOpacityAnimatedStyle]}
-          pointerEvents="box-none"
-        >
-          <View style={styles.topWrapper} pointerEvents="box-none">
-            <View style={styles.sessionInfo}>
-              <View style={styles.sessionInfoHeader}>
-                <Text style={styles.sessionName}>{sessionName}</Text>
-                <Icon
-                  name={route.params.sessionPassword ? 'locked' : 'unlocked'}
-                />
-              </View>
-              <Text style={styles.numberOfUsers}>
-                {`Participants: ${users.length}`}
-              </Text>
+        <View style={styles.topWrapper} pointerEvents="box-none">
+          <View style={styles.sessionInfo}>
+            <View style={styles.sessionInfoHeader}>
+              <Text style={styles.sessionName}>{sessionName}</Text>
+              <Icon
+                name={route.params.sessionPassword ? 'locked' : 'unlocked'}
+              />
             </View>
-
-            <View style={styles.topRightWrapper}>
-              <TouchableOpacity
-                style={styles.leaveButton}
-                onPress={onPressLeave}
-              >
-                <Text style={styles.leaveText}>LEAVE</Text>
-              </TouchableOpacity>
-              {fullScreenUser && videoInfo.length !== 0 && (
-                <View style={styles.videoInfo}>
-                  <Text style={styles.videoInfoText}>{videoInfo}</Text>
-                </View>
-              )}
-            </View>
+            <Text style={styles.numberOfUsers}>
+              {`Participants: ${users.length}`}
+            </Text>
           </View>
-
-          <View style={styles.middleWrapper} pointerEvents="box-none">
-            <FlatList
-              contentContainerStyle={styles.chatList}
-              onTouchStart={onListTouchStart}
-              onTouchEnd={onListTouchEnd}
-              data={chatMessages}
-              renderItem={({ item }) => (
-                <View style={styles.chatMessage}>
-                  <Text style={styles.chatUser}>
-                    {item.senderUser.userName}:
-                  </Text>
-                  <Text style={styles.chatContent}> {item.content}</Text>
-                </View>
-              )}
-              keyExtractor={(item, index) =>
-                `${String(item.timestamp)}${index}`
-              }
-              showsVerticalScrollIndicator={false}
-              fadingEdgeLength={50}
-              inverted
-            />
-            <View style={styles.controls}>
-              <Icon
-                containerStyle={styles.controlButton}
-                name={isMuted ? 'unmute' : 'mute'}
-                onPress={onPressAudio}
-              />
-              <Icon
-                containerStyle={styles.controlButton}
-                name={isSharing ? 'shareOff' : 'shareOn'}
-                onPress={onPressShare}
-              />
-              <Icon
-                containerStyle={styles.controlButton}
-                name={isVideoOn ? 'videoOff' : 'videoOn'}
-                onPress={onPressVideo}
-              />
-              <Icon
-                containerStyle={styles.controlButton}
-                name="more"
-                onPress={onPressMore}
-              />
-            </View>
+          <View style={styles.topRightWrapper}>
+            <TouchableOpacity
+              style={styles.leaveButton}
+              onPress={onPressLeave}
+            >
+              <Text style={styles.leaveText}>LEAVE</Text>
+            </TouchableOpacity>
           </View>
-        </Animated.View>
-
-        <View style={styles.bottomWrapper} pointerEvents="box-none">
-          {isInSession && isKeyboardOpen && (
-            <FlatList
-              style={styles.userList}
-              contentContainerStyle={styles.userListContentContainer}
-              onTouchStart={onListTouchStart}
-              onTouchEnd={onListTouchEnd}
-              data={users}
-              extraData={users}
-              renderItem={({ item }) => (
-                <VideoView
-                  user={item}
-                  focused={item.userId === fullScreenUser?.userId}
-                  onPress={(selectedUser) => setFullScreenUser(selectedUser)}
-                  key={item.userId}
-                />
-              )}
-              keyExtractor={(item) => item.userId}
-              fadingEdgeLength={50}
-              decelerationRate={0}
-              snapToAlignment="center"
-              snapToInterval={100}
-              showsHorizontalScrollIndicator={false}
-              horizontal
-            />
-          )}
-          <Animated.View style={inputOpacityAnimatedStyle}>
-            <View style={styles.chatInputWrapper}>
-              <TextInput
-                style={styles.chatInput}
-                ref={chatInputRef}
-                placeholder="Type comment"
-                placeholderTextColor="#AAA"
-                onChangeText={(text) => {
-                  scaleChatSend(text.length !== 0);
-                  setChatMessage(text);
-                }}
-                onSubmitEditing={sendChatMessage}
-              />
-              <Animated.View
-                style={[
-                  chatSendButtonScaleAnimatedStyle,
-                  styles.chatSendButton,
-                ]}
-              >
-                <Icon name="chatSend" onPress={sendChatMessage} />
-              </Animated.View>
-            </View>
-          </Animated.View>
         </View>
-
-        <Modal
-          animationType="fade"
-          transparent={true}
-          visible={isRenameModalVisible}
-          statusBarTranslucent
-        >
-          <TouchableOpacity style={styles.modalContainer} activeOpacity={1}>
-            <View style={styles.modal}>
-              <Text style={styles.modalTitleText}>Change Name</Text>
-              <TextInput
-                style={styles.renameInput}
-                placeholder="New name"
-                placeholderTextColor="#AAA"
-                onChangeText={(text) => setNewName(text)}
-              />
-              <View style={styles.modalActionContainer}>
-                <TouchableOpacity
-                  style={styles.modalAction}
-                  onPress={() => {
-                    if (fullScreenUser) {
-                      zoom.userHelper.changeName(
-                        newName,
-                        fullScreenUser.userId
-                      );
-                      setNewName('');
-                      setIsRenameModalVisible(false);
-                    }
-                  }}
-                >
-                  <Text style={styles.modalActionText}>Apply</Text>
-                </TouchableOpacity>
-                <TouchableOpacity
-                  style={styles.modalAction}
-                  onPress={() => {
-                    setNewName('');
-                    setIsRenameModalVisible(false);
-                  }}
-                >
-                  <Text style={styles.modalActionText}>Cancel</Text>
-                </TouchableOpacity>
-              </View>
-            </View>
-          </TouchableOpacity>
-        </Modal>
-
-        
-        <KeyboardArea
-          style={styles.keyboardArea}
-          isOpen={false}
-          onChange={keyboardHeightChange}
-        />
-
+        <View style={styles.middleWrapper} pointerEvents="box-none">
+          <View style={styles.controls}>
+            <Icon
+              containerStyle={styles.controlButton}
+              name={isMuted ? 'unmute' : 'mute'}
+              onPress={onPressAudio}
+            />
+            <Icon
+              containerStyle={styles.speakerButton}
+              name={isSpeakerOn ? 'speakerOff' : 'speakerOn'}
+              onPress={onPressSpeaker}
+            />
+          </View>
+        </View>
         {!isInSession && (
           <View style={styles.connectingWrapper}>
             <Text style={styles.connectingText}>Connecting...</Text>
@@ -933,6 +385,9 @@ const styles = StyleSheet.create({
     paddingTop: 24,
   },
   controlButton: {
+    marginBottom: 12,
+  },
+  speakerButton: {
     marginBottom: 12,
   },
   userList: {
