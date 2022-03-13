@@ -35,13 +35,12 @@ export function CallScreen({ navigation, route }) {
   useEffect(() => {
     (async () => {
       const { params } = route;
-      const token = await generateJwt(params.sessionName, params.roleType);
       try {
         await zoom.joinSession({
           sessionName: params.sessionName,
-          sessionPassword: params.sessionPassword,
-          token: token,
-          userName: params.displayName,
+          sessionPassword: "",
+          token: params.token,
+          userName: "student",
           audioOptions: {
             connect: true,
             mute: false,
@@ -49,7 +48,7 @@ export function CallScreen({ navigation, route }) {
           videoOptions: {
             localVideoOn: false,
           },
-          sessionIdleTimeoutMins: parseInt(params.sessionIdleTimeoutMins, 10),
+          sessionIdleTimeoutMins: 60,
         });
       } catch (e) {
         Alert.alert('Failed to join the session');

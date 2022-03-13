@@ -5,10 +5,7 @@ import { View, TouchableOpacity, StyleSheet, Text, TextInput } from 'react-nativ
 export function JoinScreen({ navigation }) {
 
   const [sessionName, setSessionName] = useState('');
-  const [sessionPassword, setSessionPassword] = useState('');
-  const [displayName, setDisplayName] = useState('');
-  const [sessionIdleTimeoutMins, setSessionIdleTimeoutMins] = useState('40');
-  const [roleType, setRoleType] = useState('');
+  const [token, setToken] = useState('');
 
   return (
     <View style={styles.container}>
@@ -25,64 +22,23 @@ export function JoinScreen({ navigation }) {
           autoCapitalize="none"
         />
       </View>
-      {/* display name */}
+      {/* token */}
       <View style={styles.inputContainer}>
         <View style={styles.textWrapper}>
-          <Text style={styles.text}>Display Name</Text>
+          <Text style={styles.text}>Token</Text>
         </View>
         <TextInput
           style={styles.input}
           placeholder={"Required"}
-          value={displayName}
-          onChangeText={setDisplayName}
-        />
-      </View>
-      {/* password */}
-      <View style={styles.inputContainer}>
-        <View style={styles.textWrapper}>
-          <Text style={styles.text}>Password</Text>
-        </View>
-        <TextInput
-          style={styles.input}
-          placeholder={"Optional"}
-          value={sessionPassword}
-          onChangeText={setSessionPassword}
-          secureTextEntry
-        />
-      </View>
-      {/* session idle timeout mins */}
-      <View style={styles.inputContainer}>
-        <View style={styles.textWrapper}>
-          <Text style={styles.text}>Session Idle Time out (Mins)</Text>
-        </View>
-        <TextInput
-          style={styles.input}
-          placeholder={"Optional"}
-          value={sessionIdleTimeoutMins}
-          onChangeText={setSessionIdleTimeoutMins}
-        />
-      </View>
-      {/* role type */}
-      <View style={styles.inputContainer}>
-        <View style={styles.textWrapper}>
-          <Text style={styles.text}>Role Type</Text>
-        </View>
-        <TextInput
-          style={styles.input}
-          placeholder={"Required (1 for Host, 0 for attendee)"}
-          value={roleType}
-          onChangeText={setRoleType}
-          keyboardType={"numeric"}
+          value={token}
+          onChangeText={setToken}
         />
       </View>
       <TouchableOpacity
         onPress={() =>
           navigation.navigate('Call', {
             sessionName,
-            displayName,
-            sessionPassword,
-            roleType,
-            sessionIdleTimeoutMins,
+            token,
           })}
         style={styles.button}
       >
